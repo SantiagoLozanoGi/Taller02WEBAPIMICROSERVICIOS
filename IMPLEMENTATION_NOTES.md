@@ -123,3 +123,10 @@ La primera ejecución del workflow en GitHub Actions falló en el paso `Compile 
 - **Problema observado:** el run #3 de Actions pasó `verify` pero el job `docker` de `api-gateway` falló ~15 s después del login, sin llegar a construir (sus hermanos de matriz se cancelaron por `fail-fast`). Docker exige nombres de repositorio de imagen **en minúsculas** (`invalid reference format: repository name must be lowercase`), y el dueño de este repositorio (`SantiagoLozanoGi`) contiene mayúsculas. La plantilla del documento falla para cualquier cuenta con ese formato.
 - **Evidencia adicional:** los pasos internos de los Dockerfile (`dependency:go-offline` y `clean package -DskipTests`) se validaron localmente con un repositorio Maven limpio: BUILD SUCCESS, por lo que el fallo no estaba en la construcción.
 - **Solución aplicada:** paso `Determine lowercase image owner` que normaliza `github.repository_owner` a minúsculas antes de componer los tags. Las imágenes se publican como `ghcr.io/santiagolozanogi/taller02-<servicio>` (GHCR asocia el espacio de nombres al mismo usuario sin distinción de mayúsculas).
+
+## 15. Corrección de la colección Postman detectada al ejecutarla (13/10/2026, validación con newman)
+
+- **Requisito original:** la guía describe la secuencia didáctica con el DELETE del perfil como paso **opcional y final** ("Opcionalmente ejecute DELETE como ADMIN").
+- **Problema observado:** en la colección reconstruida, el DELETE (03.3) se ejecutaba antes del caso negativo "perfil duplicado → 409" (04.5), de modo que al correr la colección en orden el borrado eliminaba el perfil y 04.5 recibiría 201 en lugar de 409.
+- **Solución aplicada:** el DELETE se movió al final de la colección como **04.7 "DELETE eliminar perfil como ADMIN (al final)"**, respetando el orden de la guía. Verificado con newman: 15/15 solicitudes y 28/28 aserciones.
+- **Dato adicional:** durante la misma sesión se verificó que la validación del body (@Valid) en Spring MVC precede a la seguridad de método, por lo que una solicitud a recurso ajeno con datos inválidos responde 400; con datos válidos responde el 403 del contrato. Sin cambios de código.

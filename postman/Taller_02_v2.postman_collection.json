@@ -315,33 +315,6 @@
             "description": "ADMIN consulta el perfil del estudiante usando el ID extraído de las respuestas reales (nunca un ID copiado de las capturas de la guía)."
           },
           "response": []
-        },
-        {
-          "name": "03.3 DELETE eliminar perfil como ADMIN",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"El borrado responde 204 No Content\", () => pm.response.to.have.status(204));"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "DELETE",
-            "header": [
-              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/users/{{studentId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "users", "{{studentId}}"]
-            },
-            "description": "Solo ROLE_ADMIN elimina perfiles. Ejecutar únicamente con los datos demo desechables del taller."
-          },
-          "response": []
         }
       ]
     },
@@ -524,6 +497,33 @@
               "path": ["api", "users", "{{studentId}}"]
             },
             "description": "El borrado es exclusivo de ROLE_ADMIN: un USER autenticado recibe 403."
+          },
+          "response": []
+        },
+        {
+          "name": "04.7 DELETE eliminar perfil como ADMIN (al final)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"El borrado responde 204 No Content\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/{{studentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "{{studentId}}"]
+            },
+            "description": "Paso opcional y FINAL de la secuencia didactica de la guia: solo ROLE_ADMIN elimina perfiles y debe ejecutarse despues del caso 04.5 (perfil duplicado), que requiere que el perfil todavia exista. Usar unicamente con los datos demo desechables del taller."
           },
           "response": []
         }

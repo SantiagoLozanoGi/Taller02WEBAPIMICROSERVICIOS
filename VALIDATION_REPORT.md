@@ -1,113 +1,96 @@
 # VALIDATION_REPORT.md — Evidencia de ejecución y pendientes
 
-**Fechas de verificación:** 12–13 de octubre de 2026.
-**Estado general:** CÓDIGO IMPLEMENTADO / `mvn -B clean verify` **EJECUTADO Y EXITOSO** / validación con Docker pendiente.
+**Fechas:** implementación 12–13/10/2026; **validación integral con Docker: 13/10/2026**.
+**Estado final: TODAS LAS VERIFICACIONES EJECUTABLES APROBADAS** — `mvn verify` (44/44), 5/5 servicios, health checks, Flyway, matriz funcional HTTP (40/40), seguridad, Gateway, Swagger, Postman (15/15), persistencia y CI/CD real (runs en verde).
 
-Historial honesto del proceso: la primera ejecución del workflow en GitHub Actions falló en `mvn verify` (errores de compilación de los tests contra las APIs reales de Spring Boot 4 / Spring Security 7). Se instalaron JDK 21 (Temurin 21.0.12.1 portátil) y Maven 3.9.16 en la máquina local, se reprodujo el fallo, se diagnosticó con evidencia (bytecode con `javap`, inspección de jars) y se corrigió. La suite completa ahora pasa en local y en CI. **Ninguna prueba se reporta como ejecutada si no se ejecutó.**
+**Entorno de la validación:** Windows 11, Java 21 (Temurin 21.0.12.101, `JAVA_HOME` de sistema), Maven 3.9.16 (`C:\Program Files\Apache\...`), Docker Engine 29.8.2 + Compose v5.6.0 (Docker Desktop/WSL2, instalación por usuario). Las herramientas no estaban en el PATH de la sesión del agente (heredado de antes de la instalación): se usaron sus rutas absolutas.
 
 ---
 
-## 1. Verificaciones EJECUTADAS (con resultado)
+## 1. Matriz de validación ejecutada (13/10/2026)
 
-| # | Verificación | Herramienta | Resultado |
+| # | Prueba | Comando | Esperado | Obtenido | Estado | Evidencia / Correcciones |
+|---|--------|---------|----------|----------|--------|--------------------------|
+| 1 | Herramientas | `java -version`, `mvn -version`, `docker --version`, `docker compose version` | Java 21, Maven, Docker | Temurin 21.0.12.101, Maven 3.9.16, Docker 29.8.2, Compose 5.6.0 | APROBADO | Se localizaron en PATH de registro; sesión heredada sin PATH nuevo |
+| 2 | Compilación + tests | `mvn -B clean verify` | BUILD SUCCESS | BUILD SUCCESS; 4+17+23 = **44 pruebas, 0 fallos, 0 errores** | APROBADO | 3 jars empaquetados con repackage |
+| 3 | Config Compose | `docker compose config --quiet` | exit 0 | exit 0 | APROBADO | — |
+| 4 | Levantar servicios | `docker compose up --build -d` | 5 servicios | 5/5 Up; BDs `(healthy)` | APROBADO | — |
+| 5 | Estado contenedores | `docker compose ps` | 5 activos | api-gateway 8080, auth 8081, users 8082, auth-db 5433, users-db 5434 | APROBADO | — |
+| 6 | Logs sin errores | `docker compose logs` (3 servicios) | Sin ERROR/FATAL | Sin ` ERROR `/`FATAL`/`Exception` | APROBADO | — |
+| 7 | Health Gateway | `GET :8080/actuator/health` | 200, UP | 200 `{"groups":["liveness","readiness"],"status":"UP"}` | APROBADO | — |
+| 8 | Health Auth | `GET :8081/actuator/health` | 200, UP | 200, status UP | APROBADO | — |
+| 9 | Health Users | `GET :8082/actuator/health` | 200, UP | 200, status UP | APROBADO | — |
+| 10 | Flyway auth_db | `docker compose logs auth-service` | "Migrating schema ... 1 - create credentials" + applied | Aplicada: `Successfully applied 1 migration ... now at v1` | APROBADO | PostgreSQL 17.11 |
+| 11 | Flyway users_db | `docker compose logs user-service` | "1 - create user profiles" applied | Aplicada, mismo patrón | APROBADO | — |
+| 12 | Tablas auth_db | `psql -d auth_db -c "\dt"` | credentials + flyway_schema_history | Ambas presentes | APROBADO | — |
+| 13 | Tablas users_db | `psql -d users_db -c "\dt"` | user_profiles + flyway_schema_history | Ambas presentes | APROBADO | — |
+| 14 | Separación de BDs | SQL `information_schema.tables` en ambas | auth_db sin user_profiles; users_db sin credentials | 0 y 0 tablas cruzadas | APROBADO | Database-per-Service confirmado |
+| 15 | Hashes BCrypt | SQL `credentials` | `$2a$10$...`, 60 chars, no texto plano | admin y student con `$2a$10$` (60) | APROBADO | — |
+| 16 | JPA validate | arranque de ambos servicios sin error de esquema | Sin SchemaManagementException | Servicios Started sin errores | APROBADO | — |
+| 17 | Registro nuevo usuario | POST `/api/auth/register` (usuario único) | 201 | 201 + userId | APROBADO | — |
+| 18 | Registro duplicado | ídem repetido | 409 | 409 "El nombre de usuario ya está registrado" | APROBADO | — |
+| 19 | Registro inválido | username corto/email inválido/password débil | 400 | 400 con validationErrors por campo | APROBADO | — |
+| 20 | Login ADMIN | POST `/api/auth/login` admin | 200 + JWT | 200, accessToken (623 car.), role=ADMIN | APROBADO | — |
+| 21 | Login USER | ídem student | 200 + JWT | 200, accessToken (627 car.), role=USER | APROBADO | — |
+| 22 | Credenciales incorrectas | password inválida | 401 | 401 "Credenciales inválidas" | APROBADO | — |
+| 23 | JWT RS256 + claims | decodificar header/payload | RS256, kid, sub UUID, username, email, roles, iss | RS256/kid=taller02-key; sub=UUID; roles=["ROLE_USER"]; iss=taller02-auth; sin password/hash | APROBADO | Tokens nunca impresos completos |
+| 24 | JWT alterado | payload reescrito, firma original | 401 | 401 | APROBADO | — |
+| 25 | JWT expirado | firmado localmente (exp hace 1 h) | 401 | 401 | APROBADO | Firma generada con la llave local, no impresa |
+| 26 | Crear perfil (USER) | POST `/api/users` con JWT student | 201 | 201, id = sub del token | APROBADO | — |
+| 27 | /me | GET `/api/users/me` con JWT | 200, identidad del token | 200, id == userId del login | APROBADO | — |
+| 28 | /me sin token | GET `/api/users/me` | 401 | 401 | APROBADO | — |
+| 29 | Listar como USER | GET `/api/users` con student | 403 | 403 | APROBADO | — |
+| 30 | Listar como ADMIN | GET `/api/users` con admin | 200 lista | 200, array | APROBADO | — |
+| 31 | Consultar por ID (ADMIN) | GET `/api/users/{id}` admin | 200 | 200 | APROBADO | — |
+| 32 | Consultar por ID (propietario) | ídem con student (su id) | 200 | 200 | APROBADO | — |
+| 33 | Actualizar propio (USER) | PUT su id | 200 | 200, lastName actualizado | APROBADO | — |
+| 34 | USER actualiza ajeno | PUT id del admin con student | 403 | 403 | APROBADO | Corrección al *script de validación*: body válido (la validación 400 precede a la seguridad de método; ver §3) |
+| 35 | ADMIN actualiza de otro | PUT id de student con admin | 200 | 200 | APROBADO | — |
+| 36 | Perfil duplicado | POST `/api/users` repetido | 409 | 409 "El perfil del usuario ya existe" | APROBADO | — |
+| 37 | Perfil inexistente | GET id aleatorio como ADMIN | 404 | 404 | APROBADO | — |
+| 38 | Perfil inválido | firstName vacío, phone inválido | 400 | 400 con validationErrors | APROBADO | — |
+| 39 | DELETE como USER | DELETE su id con student | 403 | 403 | APROBADO | — |
+| 40 | DELETE como ADMIN | DELETE con admin | 204 | 204; después GET → 404 | APROBADO | — |
+| 41 | Llaves en jars | `grep -a 'keys/*.pem'` dentro de los contenedores | auth: private+public; users: solo public | auth-service: private.pem+public.pem; user-service: solo public.pem | APROBADO | Distribución verificada en los jars en ejecución |
+| 42 | Secretos en Git | `git ls-files`, historial | Sin .pem/.env | Ninguno versionado en el árbol ni en el historial | APROBADO | — |
+| 43 | Respuestas sin datos sensibles | inspección de JSON | Sin password/hash | register/login//me sin campos sensibles | APROBADO | — |
+| 44 | Ruta `/api/auth/**` | Todos los tests de auth vía :8080 | Enrutable | 200/201/400/401/409 correctos | APROBADO | — |
+| 45 | Ruta `/api/users/**` | Todos los tests de perfiles vía :8080 | Enrutable | 200/201/204/400/401/403/404/409 correctos | APROBADO | — |
+| 46 | X-Correlation-Id del cliente | header propio en request | Devuelto igual | `corr-prueba-123` | APROBADO | — |
+| 47 | X-Correlation-Id generado | request sin header | UUID nuevo en respuesta | `66350d37-...` generado | APROBADO | Propagación a servicios cubierta por tests unitarios del filtro |
+| 48 | Swagger Auth | GET `:8081/swagger-ui.html` + `/v3/api-docs` | 200 + paths register/login | 200 HTML; paths `/api/auth/register`, `/api/auth/login`; bearerAuth | APROBADO | — |
+| 49 | Swagger Users | GET `:8082/swagger-ui.html` + `/v3/api-docs` | 200 + CRUD | 200; `/api/users` (get,post), `/api/users/{id}` (get,put,delete), `/api/users/me` (get); bearerAuth | APROBADO | — |
+| 50 | Colección Postman | `newman run ... -e ...` | 15/15 requests | **15 requests, 28 aserciones, 0 fallos**; scripts guardan studentToken/studentId/adminToken/adminId | APROBADO | Corrección aplicada a la colección: ver §3 |
+| 51 | Persistencia (SQL) | estado pre/post `docker compose down` (sin -v) + `up -d` | Datos intactos | 5 credenciales antes = después; perfil "Persistente Tras Restart" intacto con mismo UUID; Flyway no reaplicó (historial V1=1) | APROBADO | Nunca se ejecutó `down -v` |
+| 52 | Persistencia (API/JWT) | login post-reinicio + token pre-reinicio contra `/me` | Ambos válidos | Login 200; token PRE-reinicio → 200 con el perfil persistido | APROBADO | Stateless + llaves estables |
+| 53 | CI/CD (workflow) | revisión estática de `ci-cd.yml` | Java 21, verify, push→main, GHCR, mínimo privilegio | Conforme (setup-java v6 temurin 21, mvn verify, `if` push main, `needs: verify`, `contents: read` + `packages: write`, dueño en minúsculas) | APROBADO | — |
+| 54 | CI/CD (ejecución real) | API pública de GitHub Actions (solo lectura) | Runs en verde | Runs #4 y #5: **success** (verify + 3 imágenes); imágenes verificadas en `ghcr.io/santiagolozanogi/taller02-*` con tags `latest` y SHA | APROBADO | Sin acciones remotas durante la validación (ningún push) |
+
+## 2. Resultados agregados
+
+| Suite | Total | Aprobados | Estado |
 |---|---|---|---|
-| 1 | Inventario de archivos vs. lista de la guía (A.1–A.53 + entregables) | Comparación manual | ✅ COMPLETO: 73 archivos versionados; todos los del inventario existen en las rutas correctas |
-| 2 | XML bien formado (POM raíz + 3 módulos) | `System.Xml.XmlDocument` | ✅ Los 4 POM cargan sin errores |
-| 3 | JSON válido (colección y ambiente Postman) | `ConvertFrom-Json` | ✅ Colección: 4 carpetas, 15 requests; ambiente: 7 variables |
-| 4 | Generación local del par de llaves RSA | `sh scripts/generate-rsa-keys.sh` (OpenSSL 3.2.4) | ✅ Distribución correcta: privada+publica en auth, solo publica en users |
-| 5 | Pareja de llaves coherente | `openssl rsa -pubout \| diff` | ✅ Pública derivada de la privada idéntica a la distribuida |
-| 6 | Llaves fuera de Git | `git status` / `git ls-files` | ✅ Ningún `.pem` versionado; `.gitignore` efectivo |
-| 7 | **`mvn -B clean verify` completo** | Temurin 21.0.12.1 + Maven 3.9.16, ejecutado localmente el 13/10/2026 | ✅ **BUILD SUCCESS**: 4 módulos, **44 pruebas, 0 fallos, 0 errores** (gateway 4, auth 17, users 23); los 3 jars ejecutables (`*-2.0.0.jar`) se empaquetan con `spring-boot:repackage` |
-| 8 | Existencia real de artefactos Maven Central | Consultas HTTP a `repo1.maven.org` | ✅ Boot 4.0.8, starter-webmvc, starter-flyway, Cloud 2025.1.3, Gateway 5.0.x, springdoc 3.0.1, flyway-database-postgresql |
-| 9 | Versiones vigentes de GitHub Actions | `api.github.com` | ✅ checkout v7.0.1, setup-java v6.0.1, login-action v4.6.0, setup-buildx-action v4.4.1, build-push-action v7.4.0 |
-| 10 | Repositorio Git + remoto GitHub | `git push` a `main` | ✅ Publicado en https://github.com/SantiagoLozanoGi/Taller02WEBAPIMICROSERVICIOS (73 archivos) |
-| 11 | Contrato de API vs implementación | Lectura cruzada + `@WebMvcTest` con seguridad real | ✅ 401/403/200/201/204/400/409/404 verificados en las clases de test |
-| 12 | Compilación contra APIs reales de Boot 4 / Security 7 | `javap` sobre `spring-boot-security`, `spring-security-oauth2-jose` 7.0.7 | ✅ Evidencia de `@EnableWebSecurity` en la autoconfiguración y de la validación de issuer por claim crudo |
-| 13 | **Workflow CI/CD completo en GitHub Actions** | Run #4 (commit `c5875c3`) del 13/10/2026 | ✅ **Los 4 jobs SUCCESS**: `verify` (mvn clean verify) + `docker` × 3. Imágenes publicadas y verificadas en `ghcr.io/santiagolozanogi/taller02-{api-gateway,auth-service,user-service}` con tags `latest` y SHA |
-| 14 | Pasos internos de los Dockerfile | Simulación local con `.m2` limpio | ✅ `dependency:go-offline` y `clean package -DskipTests` finalizan con BUILD SUCCESS |
+| Pruebas Maven (unitarias + rebanada web) | 44 | 44 | ✅ |
+| Matriz funcional HTTP (script Node por Gateway) | 40 | 40 | ✅ |
+| Colección Postman (newman: solicitudes) | 15 | 15 | ✅ |
+| Aserciones de la colección Postman | 28 | 28 | ✅ |
+| Matriz de aceptación de la guía | 22 ítems | todos los ejecutables | ✅ |
 
-### 1.1 Detalle de la ejecución de `mvn -B clean verify` (13/10/2026)
+## 3. Incidencias y correcciones durante esta validación
 
-```
-Reactor Summary for Taller 02 - Microservices v2.0.0:
-Taller 02 - Microservices ..................... SUCCESS [  0.269 s]
-api-gateway .................................... SUCCESS [ 15.470 s]
-auth-service ................................... SUCCESS [ 11.587 s]
-user-service ................................... SUCCESS [  9.784 s]
-BUILD SUCCESS
-```
+1. **Colección Postman — orden de ejecución (CORRECCIÓN al entregable).** Al ejecutarla con newman se detectó que el DELETE del perfil (antes 03.3) corría antes del caso negativo "perfil duplicado → 409" (04.5): el borrado destruía el perfil y ese caso recibiría 201. La guía define el DELETE como paso **opcional y final**. Corrección mínima: el DELETE pasó a ser **04.7, al final de la colección**. Verificado con newman: 15/15 y 28/28 aserciones.
+2. **Script de validación — caso "perfil ajeno" (corrección al script propio, no al proyecto).** Con body inválido (teléfono "1") el 400 de validación de Spring MVC precede al 403 de seguridad de método. Con body válido se obtiene el 403 del contrato. Comportamiento documentado como nota de la fase 6.
+3. **Script de validación — errores propios** (URL de lectura de llave y re-ejecutabilidad): corregidos; no afectan al repositorio.
+4. **Limpieza de artefacto de validación:** se eliminó por SQL el único registro `carlos.demo` creado por la primera corrida del script de pruebas para permitir la ejecución diseñada de la colección Postman (su caso 01.1 espera 201). No se tocó ningún dato preexistente ni demo (admin/student intactos).
+5. **Datos residuales de la validación:** en `auth_db` quedan usuarios de prueba creados por la sesión (`carlos.demo.*`) y en `users_db` el perfil de student "Persistente Tras Restart". Son datos demo académicos desechables; para limpiarlos por completo se requiere `docker compose down -v` (NO ejecutado por regla de no destrucción sin autorización).
 
-| Módulo | Clase de prueba | Pruebas | Resultado |
-|---|---|---|---|
-| api-gateway | ApiGatewayApplicationTests (contexto + rutas) | 1 | ✅ |
-| api-gateway | CorrelationIdFilterTest (genera/reusa/propaga X-Correlation-Id) | 3 | ✅ |
-| auth-service | AuthControllerTest (201/200/400/401/409 con seguridad real) | 6 | ✅ |
-| auth-service | AuthServiceTest (BCrypt, 409 duplicados, login) | 6 | ✅ |
-| auth-service | JwtServiceTest (firma RS256, claims del contrato) | 3 | ✅ |
-| auth-service | CustomUserDetailsServiceTest (rol desde BD) | 2 | ✅ |
-| user-service | UserControllerTest (matriz de autorización con JWT RS256 reales) | 16 | ✅ |
-| user-service | UserProfileServiceTest (CRUD, 404/409, identidad del token) | 7 | ✅ |
-| **Total** | | **44** | **✅ 0 fallos, 0 errores** |
+## 4. Pendientes / no ejecutables en este entorno
 
-### 1.2 Incidencias corregidas durante la validación (ver IMPLEMENTATION_NOTES.md §13)
+| Ítem | Motivo | Nota |
+|---|---|---|
+| Ejecución del workflow en GitHub tras este commit de documentación | Requiere push (no autorizado en esta misión) | El workflow ya está validado con runs #4/#5 reales en verde; el repo local tiene las correcciones de la colección Postman listas para el próximo push |
+| `docker compose down -v` / limpieza total de datos demo | Requiere autorización explícita | Regla de no destrucción |
 
-1. **Run #1 y #2 de GitHub Actions fallaron** en `mvn verify` (compilación de tests): el paquete de `@WebMvcTest` cambió en Boot 4, un import faltante de `NimbusJwtEncoder`, y un varargs genérico de AssertJ. Corregido y verificado.
-2. **Slice `@WebMvcTest` de Boot 4 sin autoconfiguración de seguridad:** el contexto no cargaba (`AuthenticationConfiguration`/`HttpSecurity` inexistentes). Evidencia con `javap`: la autoconfiguración `ServletWebSecurityAutoConfiguration` aplica `@EnableWebSecurity` en la app real (`@ConditionalOnMissingBean("springSecurityFilterChain")`), pero el slice no la importa. Corrección: `@TestConfiguration @EnableWebSecurity` en los tests de controlador. Verificado.
-3. **Spring Security 7 y `Jwt.getIssuer()`:** el test verificaba el issuer con `getIssuer()`, que en SS7 exige URL y lanza excepción con `taller02-auth`. Evidencia bytecode: `JwtIssuerValidator` delega en `JwtClaimValidator`, que compara el claim `iss` crudo — la validación real de producción funciona con el issuer del contrato. El test se ajustó a `getClaimAsString("iss")`. **No se cambió el issuer del contrato.**
+## 5. Conclusión
 
-## 2. Verificaciones BLOQUEADAS (con causa y comando pendiente)
-
-| # | Verificación de la matriz de aceptación | Causa | Comando pendiente |
-|---|---|---|---|
-| 1 | `docker compose config` válido | Docker no instalado | Instalar Docker Desktop y ejecutar `docker compose config` |
-| 2 | `docker compose up --build -d` (5 servicios) | Docker no instalado | `docker compose up --build -d` |
-| 3 | `docker compose ps` con servicios sanos | Docker no instalado | `docker compose ps` |
-| 4 | Health :8080/:8081/:8082 → `{"status":"UP"}` | Servicios no levantados sin Docker | `curl http://localhost:8080/actuator/health` (y 8081, 8082) |
-| 5 | Swagger en 8081/8082 | Servicios no levantados | Abrir `http://localhost:8081/swagger-ui.html` y `:8082/swagger-ui.html` |
-| 6 | Login student por Gateway → 200 + accessToken | Servicios no levantados | `curl -i -X POST http://localhost:8080/api/auth/login -H "Content-Type: application/json" -d '{"username":"student","password":"Student123!"}'` |
-| 7 | Flujo completo POST/GET/me/PUT/DELETE por Gateway | Servicios no levantados | README §6 o colección Postman |
-| 8 | Flyway: tablas `credentials`/`user_profiles` + `flyway_schema_history` | Servicios no levantados | `docker compose exec auth-db psql -U postgres -d auth_db -c "\dt"` (y users-db) |
-| 9 | Persistencia tras `docker compose down` y `up` | Servicios no levantados | README §8 |
-| 10 | Postman Runner completo | Servicios no levantados | Importar `postman/*.json` y ejecutar Runner |
-| 11 | End-to-end con bases de datos reales | Servicios no levantados | `docker compose up` + pruebas HTTP |
-
-> La cobertura de la matriz de aceptación que no requiere Docker ya está **verificada por la suite de 44 pruebas**: 401 sin token, 403 USER vs 200 ADMIN, 409 duplicados, 400 validación, 404 inexistente, firma/expiración/issuer de JWT, identidad desde el token.
-
-## 3. Matriz de aceptación — estado
-
-| Prueba | Estado |
-|---|---|
-| Estructura del proyecto (POM raíz + 3 módulos, Java 21, Boot 4.0.8, Cloud 2025.1.3) | ✅ Compila y empaqueta (BUILD SUCCESS local) |
-| api-gateway 8080: rutas, `X-Correlation-Id`, health | ✅ Implementado y probado por tests (4/4) |
-| auth-service 8081: registro, login, BCrypt, roles, JWT RS256, DTOs, validaciones, errores, Swagger | ✅ Implementado y probado por tests (17/17) |
-| user-service 8082: Resource Server, llave pública, CRUD, propietario/ADMIN | ✅ Implementado y probado por tests (23/23) |
-| `mvn -B clean verify` sin errores | ✅ **EJECUTADO localmente: BUILD SUCCESS, 44/44** |
-| PostgreSQL independientes + Flyway V1 + `ddl-auto: validate` | ✅ Migraciones listas; ⏳ runtime con Docker |
-| Dockerfiles × 3 + Compose (5 servicios, healthchecks, 2 volúmenes) | ✅ Implementados; ⏳ `docker compose config/up` |
-| Llaves RSA locales + distribución correcta + ninguna privada en Git | ✅ Verificado (script, pareja, Git limpio) |
-| Usuarios demo ADMIN/USER | ✅ Implementados; ⏳ runtime |
-| Colección + ambiente Postman | ✅ Reconstruidos y JSON válidos; ⏳ Runner |
-| Workflow CI/CD (verify + GHCR) | ✅ **EJECUTADO Y EXITOSO** (run #4): los 4 jobs SUCCESS y las 3 imágenes publicadas/verificadas en `ghcr.io/santiagolozanogi/` |
-| README reproducible | ✅ Implementado |
-| IMPLEMENTATION_NOTES.md + VALIDATION_REPORT.md | ✅ Este documento |
-
-## 4. Riesgos técnicos abiertos
-
-1. **Namespace de rutas del Gateway** (`spring.cloud.gateway.server.webflux.routes`): el contexto del gateway arrancó correctamente con la configuración (test de contexto 1/1 ✅); la confirmación de que las rutas enrutan tráfico real queda para `docker compose up`.
-2. **End-to-end con bases de datos reales:** las pruebas de rebanada no usan PostgreSQL; Flyway y JPA `validate` se comprueban al levantar los contenedores.
-3. **Imágenes GHCR sin llaves:** por diseño de seguridad las imágenes publicadas no contienen `.pem`; requieren inyección de llaves al desplegar (documentado en §10 de IMPLEMENTATION_NOTES.md).
-
-## 5. Cómo completar la validación restante
-
-```bash
-# 1. Instalar Docker Desktop (las llaves RSA ya están generadas)
-# 2. En la raíz del proyecto:
-docker compose config
-docker compose up --build -d
-docker compose ps                                            # 5 servicios Up / healthy
-curl http://localhost:8080/actuator/health                   # {"status":"UP"}
-# 3. Pruebas funcionales: README §6 (curl) o colección Postman
-# 4. Persistencia: README §8
-```
-
-El proyecto tiene todo el código compilado, las 44 pruebas de lógica/autorización/API en verde (localmente y en el runner de GitHub), la infraestructura completa y la documentación; los ítems ⏳ dependen únicamente de Docker Desktop.
+Todas las verificaciones obligatorias de la matriz de aceptación del taller se ejecutaron **de verdad** y **pasaron**, con evidencia verificable en esta sesión: compilación, 44 pruebas automatizadas, 5 servicios, health checks, Flyway en ambas bases con separación real, matriz funcional HTTP completa (401/403/404/409/400/201/200/204), seguridad RSA/BCrypt auditada hasta dentro de los jars, Swagger en ambos servicios, colección Postman reproducible con newman, persistencia tras reinicio y CI/CD comprobado en GitHub Actions con imágenes publicadas. El proyecto queda **COMPLETAMENTE VALIDADO** en lo ejecutable localmente; los únicos pendientes son acciones que requieren autorización (push de la documentación actualizada y limpieza de volúmenes demo).
