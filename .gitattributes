@@ -1,0 +1,10 @@
+# Los scripts de shell deben conservar finales de línea LF para funcionar en Git Bash / Linux.
+*.sh text eol=lf
+
+# Fuentes y configuración con normalización estándar.
+*.java text
+*.xml text
+*.yml text
+*.yaml text
+*.sql text
+*.md text

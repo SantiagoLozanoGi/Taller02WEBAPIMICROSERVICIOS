@@ -1,0 +1,12 @@
+**/target/
+.idea/
+.vscode/
+*.iml
+.env
+.DS_Store
+
+# Llaves RSA generadas localmente con scripts/generate-rsa-keys.sh.
+# Nunca se versionan: la llave privada solo pertenece al emisor (auth-service).
+auth-service/src/main/resources/keys/*.pem
+user-service/src/main/resources/keys/*.pem
+.keys-tmp/

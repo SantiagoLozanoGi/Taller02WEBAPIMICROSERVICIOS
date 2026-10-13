@@ -1,0 +1,93 @@
+services:
+
+  auth-db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: auth_db
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "5433:5432"
+    volumes:
+      - auth-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d auth_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+    networks:
+      - taller-net
+
+  users-db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: users_db
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "5434:5432"
+    volumes:
+      - users-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d users_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+    networks:
+      - taller-net
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: auth-service/Dockerfile
+    environment:
+      AUTH_DB_URL: jdbc:postgresql://auth-db:5432/auth_db
+      AUTH_DB_USERNAME: ${POSTGRES_USER:-postgres}
+      AUTH_DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      DEMO_USERS_ENABLED: "true"
+    ports:
+      - "8081:8081"
+    depends_on:
+      auth-db:
+        condition: service_healthy
+    networks:
+      - taller-net
+
+  user-service:
+    build:
+      context: .
+      dockerfile: user-service/Dockerfile
+    environment:
+      USER_DB_URL: jdbc:postgresql://users-db:5432/users_db
+      USER_DB_USERNAME: ${POSTGRES_USER:-postgres}
+      USER_DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "8082:8082"
+    depends_on:
+      users-db:
+        condition: service_healthy
+    networks:
+      - taller-net
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: api-gateway/Dockerfile
+    environment:
+      AUTH_SERVICE_URL: http://auth-service:8081
+      USER_SERVICE_URL: http://user-service:8082
+    ports:
+      - "8080:8080"
+    depends_on:
+      - auth-service
+      - user-service
+    networks:
+      - taller-net
+
+volumes:
+  auth-data:
+  users-data:
+
+networks:
+  taller-net:
+    driver: bridge

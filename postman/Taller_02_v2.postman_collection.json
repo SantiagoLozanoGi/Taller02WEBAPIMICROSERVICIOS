@@ -1,0 +1,533 @@
+{
+  "info": {
+    "_postman_id": "b2f3a7c1-4d5e-4f6a-8a9b-0c1d2e3f4a5b",
+    "name": "Taller 02 v2.0 - Microservices",
+    "description": "Colección reconstruida del Taller 02 v2.0 (Universidad de Ibagué). Prueba el flujo completo por el API Gateway (http://localhost:8080): registro, login de USER y ADMIN, creación, consulta, actualización y eliminación de perfiles, más los casos negativos 400/401/403/409. Los scripts guardan automáticamente studentToken, studentId, adminToken y adminId en el ambiente. Ejecutar en orden con Runner.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "noauth"
+  },
+  "variable": [],
+  "item": [
+    {
+      "name": "01 Autenticación",
+      "item": [
+        {
+          "name": "01.1 Registro de usuario nuevo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"El registro responde 201 Created\", () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"La credencial se crea con rol USER\", () => pm.expect(body.role).to.eql(\"USER\"));",
+                  "pm.test(\"La respuesta no expone la contraseña\", () => pm.expect(body).to.not.have.property(\"password\"));",
+                  "pm.environment.set(\"registeredUserId\", body.userId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"carlos.demo\",\n  \"email\": \"carlos.demo@example.com\",\n  \"password\": \"Demo12345\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "register"]
+            },
+            "description": "Crea una credencial nueva con rol USER. Público, sin token."
+          },
+          "response": []
+        },
+        {
+          "name": "01.2 Login student (guarda studentToken)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"El login responde 200 OK\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Devuelve un accessToken no vacío\", () => {",
+                  "  pm.expect(body.accessToken).to.be.a(\"string\");",
+                  "  pm.expect(body.accessToken.length).to.be.above(0);",
+                  "});",
+                  "pm.test(\"El token es un JWT de tres segmentos\", () => {",
+                  "  const parts = body.accessToken.split(\".\");",
+                  "  pm.expect(parts.length).to.eql(3);",
+                  "});",
+                  "pm.test(\"El usuario autenticado es student con rol USER\", () => {",
+                  "  pm.expect(body.username).to.eql(\"student\");",
+                  "  pm.expect(body.role).to.eql(\"USER\");",
+                  "});",
+                  "pm.environment.set(\"studentToken\", body.accessToken);",
+                  "pm.environment.set(\"studentId\", body.userId);",
+                  "console.log(\"studentId guardado: \" + body.userId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"student\",\n  \"password\": \"Student123!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "Login del usuario demo student a través del Gateway. Guarda studentToken y studentId en el ambiente."
+          },
+          "response": []
+        },
+        {
+          "name": "01.3 Login admin (guarda adminToken)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"El login responde 200 OK\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Devuelve un accessToken no vacío\", () => {",
+                  "  pm.expect(body.accessToken).to.be.a(\"string\");",
+                  "  pm.expect(body.accessToken.length).to.be.above(0);",
+                  "});",
+                  "pm.test(\"El usuario autenticado es admin con rol ADMIN\", () => {",
+                  "  pm.expect(body.username).to.eql(\"admin\");",
+                  "  pm.expect(body.role).to.eql(\"ADMIN\");",
+                  "});",
+                  "pm.environment.set(\"adminToken\", body.accessToken);",
+                  "pm.environment.set(\"adminId\", body.userId);",
+                  "console.log(\"adminId guardado: \" + body.userId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"Admin123!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "Login del usuario demo admin a través del Gateway. Guarda adminToken y adminId en el ambiente."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "02 Perfil del estudiante",
+      "item": [
+        {
+          "name": "02.1 POST crear mi perfil (student)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"La creación responde 201 o 409 si ya existía\", () => {",
+                  "  pm.expect([201, 409]).to.include(pm.response.code);",
+                  "});",
+                  "if (pm.response.code === 201) {",
+                  "  const body = pm.response.json();",
+                  "  pm.test(\"El perfil usa la identidad del token\", () => pm.expect(body.username).to.eql(\"student\"));",
+                  "  pm.environment.set(\"studentId\", body.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{studentToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Estudiante\",\n  \"lastName\": \"Demo\",\n  \"phone\": \"+57 300 111 2233\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users"]
+            },
+            "description": "Crea el perfil del sujeto del token. El body no lleva username/email: salen del JWT. Si el perfil ya existe, responde 409 y se continúa con GET /me."
+          },
+          "response": []
+        },
+        {
+          "name": "02.2 GET mi perfil (student)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"GET /me responde 200 OK\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"El perfil corresponde al sujeto del token\", () => {",
+                  "  pm.expect(body.id).to.eql(pm.environment.get(\"studentId\"));",
+                  "  pm.expect(body.username).to.eql(\"student\");",
+                  "});",
+                  "pm.environment.set(\"studentId\", body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{studentToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "me"]
+            },
+            "description": "El microservicio obtiene la identidad del JWT: no se envía ningún ID en la URL."
+          },
+          "response": []
+        },
+        {
+          "name": "02.3 PUT actualizar mi perfil (student)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"La actualización responde 200 OK\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"El teléfono actualizado se persiste\", () => pm.expect(body.phone).to.eql(\"+57 300 999 8877\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{studentToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Estudiante\",\n  \"lastName\": \"Demo Actualizado\",\n  \"phone\": \"+57 300 999 8877\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/users/{{studentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "{{studentId}}"]
+            },
+            "description": "El propietario actualiza su propio perfil usando el ID guardado por los scripts."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "03 Administración (ADMIN)",
+      "item": [
+        {
+          "name": "03.1 GET listar perfiles como ADMIN",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"El listado responde 200 OK\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"La respuesta es una lista\", () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"array\");",
+                  "  pm.environment.set(\"firstProfileId\", body.length > 0 ? body[0].id : \"\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users"]
+            },
+            "description": "Solo ROLE_ADMIN puede listar todos los perfiles."
+          },
+          "response": []
+        },
+        {
+          "name": "03.2 GET perfil por ID como ADMIN",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"La consulta responde 200 OK\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"El ID consultado coincide con el perfil devuelto\", () => {",
+                  "  pm.expect(pm.response.json().id).to.eql(pm.environment.get(\"studentId\"));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/{{studentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "{{studentId}}"]
+            },
+            "description": "ADMIN consulta el perfil del estudiante usando el ID extraído de las respuestas reales (nunca un ID copiado de las capturas de la guía)."
+          },
+          "response": []
+        },
+        {
+          "name": "03.3 DELETE eliminar perfil como ADMIN",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"El borrado responde 204 No Content\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/{{studentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "{{studentId}}"]
+            },
+            "description": "Solo ROLE_ADMIN elimina perfiles. Ejecutar únicamente con los datos demo desechables del taller."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "04 Casos negativos",
+      "item": [
+        {
+          "name": "04.1 GET /me sin JWT -> 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Sin token responde 401 Unauthorized\", () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "me"]
+            },
+            "description": "401 = no autenticado (diferente de 403 = autenticado sin permiso)."
+          },
+          "response": []
+        },
+        {
+          "name": "04.2 GET perfiles como USER -> 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"ROLE_USER recibe 403 Forbidden al listar\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{studentToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users"]
+            },
+            "description": "student tiene un JWT válido pero el rol USER no autoriza la operación: 403."
+          },
+          "response": []
+        },
+        {
+          "name": "04.3 Registro duplicado -> 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"El duplicado responde 409 Conflict\", () => pm.response.to.have.status(409));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"El error informa el conflicto\", () => pm.expect(body.message).to.include(\"ya\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"carlos.demo\",\n  \"email\": \"carlos.demo@example.com\",\n  \"password\": \"Demo12345\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "register"]
+            },
+            "description": "Reintentar el registro del mismo username debe producir 409."
+          },
+          "response": []
+        },
+        {
+          "name": "04.4 Registro inválido -> 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"La entrada inválida responde 400 Bad Request\", () => pm.response.to.have.status(400));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Se devuelven los errores por campo\", () => {",
+                  "  pm.expect(body.validationErrors).to.be.an(\"object\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"ab\",\n  \"email\": \"no-es-un-correo\",\n  \"password\": \"sinmayuscula1\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "register"]
+            },
+            "description": "Username demasiado corto, email inválido y contraseña sin mayúscula: 400 con detalle por campo."
+          },
+          "response": []
+        },
+        {
+          "name": "04.5 Perfil duplicado -> 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"El perfil duplicado responde 409 Conflict\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{studentToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Estudiante\",\n  \"lastName\": \"Demo\",\n  \"phone\": \"+57 300 111 2233\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users"]
+            },
+            "description": "Si el perfil del sujeto del token ya existe, la creación repetida responde 409. Ejecutar después de 02.1."
+          },
+          "response": []
+        },
+        {
+          "name": "04.6 DELETE como USER -> 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"ROLE_USER recibe 403 Forbidden al intentar borrar\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{studentToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/{{studentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "{{studentId}}"]
+            },
+            "description": "El borrado es exclusivo de ROLE_ADMIN: un USER autenticado recibe 403."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
