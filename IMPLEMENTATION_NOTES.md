@@ -1,0 +1,92 @@
+# IMPLEMENTATION_NOTES.md — Decisiones y correcciones documentadas
+
+**Proyecto:** `taller-02-microservices` v2.0.0 — Taller 02, Universidad de Ibagué.
+**Fuente de requisitos:** `Taller_02_v2_Guia_Completa.docx` (transcripción íntegra en `Taller_02_Paquete_Para_Agente/AGENTS.md`, Anexos A.1–A.53).
+
+Cada desviación respecto al documento original se lista aquí con su justificación, conforme al protocolo de correcciones mínimas.
+
+---
+
+## 1. Reconstrucción del código del Anexo A
+
+El código de referencia llegó como texto convertido desde Word con caracteres escapados (`\</`, `\<`, `\>`, `\|\`, `-\>`, `\[`, etc.) e indentación destruida. **No se pegó a ciegas**: cada archivo se restauró a su sintaxis real (XML/POM, YAML, Java, Dockerfile, SQL y shell) y se revisó contra el contrato de API de la sección 3 del AGENTS.md. El resultado compila conceptualmente con las firmas de Spring Boot 4 / Spring Security 7, aunque la compilación física queda pendiente de Maven (ver `VALIDATION_REPORT.md`).
+
+## 2. Corrección de ruta en A.13 (error tipográfico del documento)
+
+- **Requisito original:** `auth-service/src/main/edu/unibague/auth/controller/AuthController.java`.
+- **Problema:** la ruta omite el segmento `java/`; ninguna herramienta Maven compilaría ahí.
+- **Solución aplicada:** `auth-service/src/main/java/edu/unibague/auth/controller/AuthController.java`. Sin cambio de paquete ni de nombre de clase.
+
+## 3. JSON de Postman reconstruidos (Anexo B)
+
+- **Requisito original:** el Anexo B describe dos archivos importables, pero su contenido no está incluido en el DOCX.
+- **Solución aplicada:** se reconstruyeron `postman/Taller_02_v2.postman_collection.json` (15 solicitudes en 4 carpetas: autenticación, perfil del estudiante, administración ADMIN y casos negativos) y `postman/Taller_02_v2.postman_environment.json` (ambiente "Taller 02 v2.0 - Local", `baseUrl=http://localhost:8080`). Los scripts de prueba guardan automáticamente `studentToken`, `studentId`, `adminToken` y `adminId`, y las solicitudes usan esos IDs extraídos de respuestas reales.
+- **Nombre del ambiente:** la guía alterna `enviroment` y `environment`; se usa `Taller_02_v2.postman_environment.json` según el inventario del documento.
+
+## 4. Ruta del workflow de CI
+
+- **Requisito original:** la estructura inicial muestra `github/workflows/ci-cd.yml`, pero el inventario y la sección CI/CD usan `.github/workflows/ci-cd.yml`.
+- **Solución aplicada:** `.github/workflows/ci-cd.yml` (convención real de GitHub Actions y la especificada por el inventario).
+
+## 5. UUIDs de las capturas y asignación shell inválida
+
+- Los identificadores literales de las figuras de la guía (p. ej. `f0bf8ba7-...`, `472da599-...`) **no se copiaron** a README, Postman ni scripts: en todas partes el ID se extrae de la respuesta real (`sed` en curl, `body.id` en Postman).
+- El ejemplo `ADMIN_ID= "..."` (con espacio tras el `=`) se corrigió a la asignación shell válida `ADMIN_ID="..."` en la documentación.
+
+## 6. Llaves RSA: cero llaves en el repositorio
+
+- **Requisito original:** par PEM entregado aparte; la privada solo al emisor, nunca en Git.
+- **Solución aplicada:**
+  - `scripts/generate-rsa-keys.sh` genera el par y distribuye `private.pem` + `public.pem` a auth-service y **solo** `public.pem` a user-service (A.53 restaurado).
+  - **Corrección de seguridad al A.52:** el `.gitignore` original no excluía los `.pem` generados; se añadieron los patrones `auth-service/src/main/resources/keys/*.pem`, `user-service/src/main/resources/keys/*.pem` y `.keys-tmp/`. Se verificó con `git status` que ningún `.pem` queda en staging.
+  - **Pruebas automatizadas sin secretos:** ninguna llave se versiona ni para tests. `TestRsaKeys` genera pares RSA en memoria y los expone como archivos temporales vía `@DynamicPropertySource`, de modo que `mvn verify` funciona en CI sin secretos externos. Para los tests de user-service, un segundo par "no confiable" permite verificar que un token firmado por un tercero recibe 401.
+  - En esta máquina se generó y verificó un par de demostración local (fuera de Git) para que `docker compose up` funcione en cuanto exista Docker.
+
+## 7. Verificación de versiones contra registros públicos (2026-10-12)
+
+Confirmado en Maven Central y GitHub Releases que las versiones del documento existen y son vigentes (sin cambios de versión, por tanto):
+
+| Artefacto / Action | Versión de la guía | Estado verificado |
+|---|---|---|
+| spring-boot-starter-parent | 4.0.8 | Publicado en Maven Central |
+| spring-boot-starter-webmvc | (gestionado por Boot 4) | Existe desde 4.0.0-M1 — nombre real de Boot 4 |
+| spring-boot-starter-flyway | (gestionado por Boot 4) | Existe desde 4.0.0-M1 — nombre real de Boot 4 |
+| spring-cloud-dependencies | 2025.1.3 | Publicado en Maven Central |
+| spring-cloud-starter-gateway-server-webflux | (gestionado por Cloud 2025.1.3, Gateway 5.x) | Línea 5.0.x publicada |
+| springdoc-openapi-starter-webmvc-ui | 3.0.1 | Publicado en Maven Central |
+| flyway-database-postgresql | (gestionado por Boot) | Publicado |
+| actions/checkout | v7 | Última release: v7.0.1 |
+| actions/setup-java | v6 | Última release: v6.0.1 |
+| docker/login-action | v4 | Última release: v4.6.0 |
+| docker/setup-buildx-action | v4 | Última release: v4.4.1 |
+| docker/build-push-action | v7 | Última release: v7.4.0 |
+
+La compilación y ejecución de pruebas (`mvn -B clean verify`) queda pendiente de una máquina con JDK 21 + Maven (ver `VALIDATION_REPORT.md`).
+
+## 8. Pruebas automatizadas (añadidas; la guía exige pruebas realistas pero no las incluye)
+
+Suite diseñada para correr sin base de datos ni secretos (compatible con el runner del workflow `verify`):
+
+- **auth-service:** `JwtServiceTest` (firma RS256 + claims del contrato, decodificables con la pública), `AuthServiceTest` (registro, 409 por username/email duplicado, BCrypt — nunca texto plano, login), `CustomUserDetailsServiceTest`, `AuthControllerTest` (`@WebMvcTest` + seguridad real: 201/200/400/401/409 del contrato).
+- **user-service:** `UserControllerTest` (`@WebMvcTest` + `SecurityConfig` real con tokens RS256 mintados en memoria: 401 sin token / llave ajena / expirado / issuer incorrecto; 403 USER listando o borrando o leyendo perfil ajeno; 200/201/204/400/409/404 en los casos positivos), `UserProfileServiceTest` (CRUD, identidad desde el token, duplicados 409, inexistente 404).
+- **api-gateway:** `CorrelationIdFilterTest` (genera, reutiliza y propaga `X-Correlation-Id`) y `ApiGatewayApplicationTests` (el contexto arranca con las rutas configuradas).
+- Se usó `@MockitoBean` (`org.springframework.test.context.bean.override.mockito`) porque en Spring Boot 4 es el reemplazo de `@MockBean`.
+
+## 9. Archivos añadidos no contradictorios con la guía
+
+- `.gitattributes`: fuerza `*.sh` a LF para que `scripts/generate-rsa-keys.sh` funcione tras un checkout en Windows (Git Bash rechaza shell con CRLF). Justificación: reproducibilidad del entregable.
+- `.dockerignore`: exigido en el inventario pero sin contenido en el Anexo A; se definió excluyendo `.git`, `**/target`, `.env`, postman, docs y markdown del contexto de build.
+- Tests descritos en el punto 8.
+- `IMPLEMENTATION_NOTES.md` y `VALIDATION_REPORT.md` (este par de documentos, exigidos por el AGENTS.md).
+
+## 10. Notas de despliegue de las imágenes GHCR
+
+Las imágenes que publica el workflow **no contienen llaves RSA** (no se versionan por diseño). Para ejecutar una imagen de GHCR en otro entorno deben inyectarse `private.pem` (solo auth-service) y la `public.pem` pareja (user-service) en tiempo de despliegue (volumen o secrets). El flujo académico local (`scripts/generate-rsa-keys.sh` + `docker compose up --build`) no requiere este paso porque el build copia las llaves generadas dentro de `src/`.
+
+## 11. Contrato de API respetado sin cambios
+
+Tabla de endpoints, puertos, códigos (201/200/204/400/401/403/404/409), claims del JWT (`sub` UUID, `username`, `email`, `roles`), issuer `taller02-auth`, validación de firma/expiración/issuer con la pública, identidad del token (nunca del body), Swagger directo en 8081/8082 y rutas del Gateway `/api/auth/**` y `/api/users/**` con `X-Correlation-Id`: todo implementado exactamente como el contrato de la página 27, que prevalece sobre las explicaciones mezcladas de las páginas 20–21.
+
+## 12. Comandos destructivos
+
+`docker compose down -v`, borrado de volúmenes y DELETE de perfiles se documentaron y ejecutan **solo** con datos demo desechables; el README lo advierte explícitamente. Ningún comando destructivo se ejecutó durante esta implementación.
