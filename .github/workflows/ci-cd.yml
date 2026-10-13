@@ -40,6 +40,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      # GHCR exige nombres de imagen en minusculas; algunos usuarios de GitHub
+      # (como SantiagoLozanoGi) tienen mayusculas en su nombre, por lo que el
+      # dueño se normaliza antes de construir los tags.
+      - name: Determine lowercase image owner
+        id: owner
+        run: echo "name=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
@@ -57,5 +64,5 @@ jobs:
           file: ./${{ matrix.service }}/Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/taller02-${{ matrix.service }}:latest
-            ghcr.io/${{ github.repository_owner }}/taller02-${{ matrix.service }}:${{ github.sha }}
+            ghcr.io/${{ steps.owner.outputs.name }}/taller02-${{ matrix.service }}:latest
+            ghcr.io/${{ steps.owner.outputs.name }}/taller02-${{ matrix.service }}:${{ github.sha }}

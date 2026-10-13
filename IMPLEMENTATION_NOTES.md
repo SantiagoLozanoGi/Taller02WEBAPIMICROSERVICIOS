@@ -116,3 +116,10 @@ La primera ejecución del workflow en GitHub Actions falló en el paso `Compile 
 5. **Detalles menores de compilación:** import faltante de `NimbusJwtEncoder` en `AuthServiceTest`; `containsExactly` con varargs de tipo capturado (`Collection<? extends GrantedAuthority>`) se sustituyó por `singleElement().isEqualTo(...)` en `CustomUserDetailsServiceTest`.
 
 **Resultado tras las correcciones:** `mvn -B clean verify` finaliza con **BUILD SUCCESS** (4 módulos, 44 pruebas: 0 fallos, 0 errores). Detalle completo en `VALIDATION_REPORT.md` §1.1.
+
+## 14. Corrección del job `docker` del workflow (13/10/2026)
+
+- **Requisito original (A.50):** las etiquetas de imagen usan `ghcr.io/${{ github.repository_owner }}/taller02-<servicio>`.
+- **Problema observado:** el run #3 de Actions pasó `verify` pero el job `docker` de `api-gateway` falló ~15 s después del login, sin llegar a construir (sus hermanos de matriz se cancelaron por `fail-fast`). Docker exige nombres de repositorio de imagen **en minúsculas** (`invalid reference format: repository name must be lowercase`), y el dueño de este repositorio (`SantiagoLozanoGi`) contiene mayúsculas. La plantilla del documento falla para cualquier cuenta con ese formato.
+- **Evidencia adicional:** los pasos internos de los Dockerfile (`dependency:go-offline` y `clean package -DskipTests`) se validaron localmente con un repositorio Maven limpio: BUILD SUCCESS, por lo que el fallo no estaba en la construcción.
+- **Solución aplicada:** paso `Determine lowercase image owner` que normaliza `github.repository_owner` a minúsculas antes de componer los tags. Las imágenes se publican como `ghcr.io/santiagolozanogi/taller02-<servicio>` (GHCR asocia el espacio de nombres al mismo usuario sin distinción de mayúsculas).
