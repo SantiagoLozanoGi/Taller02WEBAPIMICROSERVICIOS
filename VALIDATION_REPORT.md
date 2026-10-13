@@ -23,6 +23,8 @@ Historial honesto del proceso: la primera ejecución del workflow en GitHub Acti
 | 10 | Repositorio Git + remoto GitHub | `git push` a `main` | ✅ Publicado en https://github.com/SantiagoLozanoGi/Taller02WEBAPIMICROSERVICIOS (73 archivos) |
 | 11 | Contrato de API vs implementación | Lectura cruzada + `@WebMvcTest` con seguridad real | ✅ 401/403/200/201/204/400/409/404 verificados en las clases de test |
 | 12 | Compilación contra APIs reales de Boot 4 / Security 7 | `javap` sobre `spring-boot-security`, `spring-security-oauth2-jose` 7.0.7 | ✅ Evidencia de `@EnableWebSecurity` en la autoconfiguración y de la validación de issuer por claim crudo |
+| 13 | **Workflow CI/CD completo en GitHub Actions** | Run #4 (commit `c5875c3`) del 13/10/2026 | ✅ **Los 4 jobs SUCCESS**: `verify` (mvn clean verify) + `docker` × 3. Imágenes publicadas y verificadas en `ghcr.io/santiagolozanogi/taller02-{api-gateway,auth-service,user-service}` con tags `latest` y SHA |
+| 14 | Pasos internos de los Dockerfile | Simulación local con `.m2` limpio | ✅ `dependency:go-offline` y `clean package -DskipTests` finalizan con BUILD SUCCESS |
 
 ### 1.1 Detalle de la ejecución de `mvn -B clean verify` (13/10/2026)
 
@@ -67,8 +69,7 @@ BUILD SUCCESS
 | 8 | Flyway: tablas `credentials`/`user_profiles` + `flyway_schema_history` | Servicios no levantados | `docker compose exec auth-db psql -U postgres -d auth_db -c "\dt"` (y users-db) |
 | 9 | Persistencia tras `docker compose down` y `up` | Servicios no levantados | README §8 |
 | 10 | Postman Runner completo | Servicios no levantados | Importar `postman/*.json` y ejecutar Runner |
-| 11 | Job `docker` del workflow (publicación GHCR) | Requiere `verify` verde en un push a main | Confirmar en la pestaña Actions tras este push |
-| 12 | End-to-end con bases de datos reales | Servicios no levantados | `docker compose up` + pruebas HTTP |
+| 11 | End-to-end con bases de datos reales | Servicios no levantados | `docker compose up` + pruebas HTTP |
 
 > La cobertura de la matriz de aceptación que no requiere Docker ya está **verificada por la suite de 44 pruebas**: 401 sin token, 403 USER vs 200 ADMIN, 409 duplicados, 400 validación, 404 inexistente, firma/expiración/issuer de JWT, identidad desde el token.
 
@@ -86,7 +87,7 @@ BUILD SUCCESS
 | Llaves RSA locales + distribución correcta + ninguna privada en Git | ✅ Verificado (script, pareja, Git limpio) |
 | Usuarios demo ADMIN/USER | ✅ Implementados; ⏳ runtime |
 | Colección + ambiente Postman | ✅ Reconstruidos y JSON válidos; ⏳ Runner |
-| Workflow CI/CD (verify + GHCR) | ✅ Push ejecuta el workflow; se confirma el resultado en la pestaña Actions |
+| Workflow CI/CD (verify + GHCR) | ✅ **EJECUTADO Y EXITOSO** (run #4): los 4 jobs SUCCESS y las 3 imágenes publicadas/verificadas en `ghcr.io/santiagolozanogi/` |
 | README reproducible | ✅ Implementado |
 | IMPLEMENTATION_NOTES.md + VALIDATION_REPORT.md | ✅ Este documento |
 

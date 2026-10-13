@@ -246,7 +246,7 @@ mvn -B -pl api-gateway -am spring-boot:run    # terminal 3
 El workflow `.github/workflows/ci-cd.yml` se ejecuta en cada push/PR a `main`:
 
 1. **verify**: Java 21 (Temurin) con caché de Maven y `mvn -B clean verify`.
-2. **docker** (solo en push a main): construye y publica las tres imágenes en GitHub Container Registry (`ghcr.io/<owner>/taller02-<servicio>:latest` y `:sha`), usando `GITHUB_TOKEN`.
+2. **docker** (solo en push a main): construye y publica las tres imágenes en GitHub Container Registry (`ghcr.io/santiagolozanogi/taller02-<servicio>:latest` y `:<sha>`), usando `GITHUB_TOKEN`. El nombre del dueño se normaliza a minúsculas porque Docker exige nombres de imagen en minúsculas. Verificado: run #4 del 13/10/2026, 4/4 jobs SUCCESS e imágenes publicadas.
 
 Las imágenes publicadas **no incluyen llaves RSA** (no se versionan por seguridad). Para ejecutar una imagen de GHCR hay que inyectar el par de llaves en tiempo de despliegue (montaje de volumen o secrets del orquestador), garantizando que `auth-service` reciba la privada y que `user-service` valide con la pública pareja.
 
