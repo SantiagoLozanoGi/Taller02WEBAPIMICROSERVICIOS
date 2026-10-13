@@ -61,7 +61,7 @@ Confirmado en Maven Central y GitHub Releases que las versiones del documento ex
 | docker/setup-buildx-action | v4 | Última release: v4.4.1 |
 | docker/build-push-action | v7 | Última release: v7.4.0 |
 
-La compilación y ejecución de pruebas (`mvn -B clean verify`) queda pendiente de una máquina con JDK 21 + Maven (ver `VALIDATION_REPORT.md`).
+La compilación y ejecución de pruebas (`mvn -B clean verify`) fue verificada posteriormente en local (Temurin 21.0.12.1 + Maven 3.9.16) y en el runner de GitHub Actions: **BUILD SUCCESS, 44/44 pruebas** (ver `VALIDATION_REPORT.md` §1.1 y §13 de este documento).
 
 ## 8. Pruebas automatizadas (añadidas; la guía exige pruebas realistas pero no las incluye)
 
@@ -90,3 +90,29 @@ Tabla de endpoints, puertos, códigos (201/200/204/400/401/403/404/409), claims 
 ## 12. Comandos destructivos
 
 `docker compose down -v`, borrado de volúmenes y DELETE de perfiles se documentaron y ejecutan **solo** con datos demo desechables; el README lo advierte explícitamente. Ningún comando destructivo se ejecutó durante esta implementación.
+
+## 13. Correcciones de compatibilidad detectadas al ejecutar `mvn -B clean verify` (13/10/2026)
+
+La primera ejecución del workflow en GitHub Actions falló en el paso `Compile and test`. Se reprodujo el fallo localmente (Temurin 21.0.12.1 + Maven 3.9.16) y se corrigieron, con evidencia, los siguientes puntos — **todos en las pruebas; el código principal del Anexo A no requirió cambios**:
+
+1. **`@WebMvcTest` cambió de ubicación en Spring Boot 4.**
+   - Requisito original: no aplica (la guía no incluye tests); surge de las versiones del propio documento.
+   - Problema: el paquete `org.springframework.boot.test.autoconfigure.web.servlet` ya no existe en Boot 4; la anotación vive ahora en `org.springframework.boot.webmvc.test.autoconfigure` (verificado inspeccionando `spring-boot-webmvc-test-4.0.8.jar`).
+   - Solución: se añadió la dependencia `org.springframework.boot:spring-boot-webmvc-test` (scope test) a `auth-service` y `user-service` y se usó el nuevo import en `AuthControllerTest` y `UserControllerTest`.
+
+2. **El slice `@WebMvcTest` de Boot 4 no importa la autoconfiguración de seguridad.**
+   - Problema: el contexto de test no cargaba porque `SecurityConfig` requiere beans `AuthenticationConfiguration` y `HttpSecurity`, provistos en la app real por `@EnableWebSecurity` dentro de `ServletWebSecurityAutoConfiguration` (verificado con `javap`: `@ConditionalOnMissingBean(name="springSecurityFilterChain")` + `@EnableWebSecurity`), que el slice no importa.
+   - Solución: en ambos tests de controlador se añadió una `@TestConfiguration @EnableWebSecurity` que activa la infraestructura real de seguridad. Con ello se prueban las cadenas de filtros auténticas (los 401/403 de la matriz de aceptación se validan con la seguridad real).
+
+3. **Spring Security 7 convierte `Jwt.getIssuer()` a URL.**
+   - Problema: el test `JwtServiceTest` usaba `jwt.getIssuer()`, que en SS7 lanza `IllegalArgumentException` para el issuer del contrato (`taller02-auth`, no es URL).
+   - Evidencia de que el contrato NO debe romperse: `JwtIssuerValidator` delega en `JwtClaimValidator`, que compara el claim `iss` crudo mediante `Jwt.getClaim()` (bytecode verificado con `javap`), por lo que la validación real de producción funciona con `taller02-auth`.
+   - Solución: el test lee `jwt.getClaimAsString("iss")`. **El issuer de la app se mantiene en `taller02-auth` según contrato.**
+
+4. **Timestamps de claims JWT con precisión de segundos.**
+   - Problema: `Jwt.getExpiresAt()` trunca a segundos y la comparación exacta con el `Instant` (nanosegundos) fallaba.
+   - Solución: la aserción compara `result.expiresAt().truncatedTo(ChronoUnit.SECONDS)`.
+
+5. **Detalles menores de compilación:** import faltante de `NimbusJwtEncoder` en `AuthServiceTest`; `containsExactly` con varargs de tipo capturado (`Collection<? extends GrantedAuthority>`) se sustituyó por `singleElement().isEqualTo(...)` en `CustomUserDetailsServiceTest`.
+
+**Resultado tras las correcciones:** `mvn -B clean verify` finaliza con **BUILD SUCCESS** (4 módulos, 44 pruebas: 0 fallos, 0 errores). Detalle completo en `VALIDATION_REPORT.md` §1.1.

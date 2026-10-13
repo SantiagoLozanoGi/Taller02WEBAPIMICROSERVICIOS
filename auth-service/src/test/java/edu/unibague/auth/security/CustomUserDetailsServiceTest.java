@@ -40,7 +40,7 @@ class CustomUserDetailsServiceTest {
 
         assertThat(user.getUsername()).isEqualTo("student");
         assertThat(user.getPassword()).isEqualTo("$2a$10$hash-de-prueba");
-        assertThat(user.getAuthorities()).containsExactly(new SimpleGrantedAuthority("ROLE_USER"));
+        assertThat(user.getAuthorities()).singleElement().isEqualTo(new SimpleGrantedAuthority("ROLE_USER"));
     }
 
     @Test

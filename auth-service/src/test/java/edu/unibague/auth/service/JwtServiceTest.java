@@ -3,6 +3,7 @@ package edu.unibague.auth.service;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -62,8 +63,12 @@ class JwtServiceTest {
         assertThat(jwt.getClaimAsString("username")).isEqualTo("student");
         assertThat(jwt.getClaimAsString("email")).isEqualTo("student@taller.local");
         assertThat(jwt.getClaimAsStringList("roles")).containsExactly("ROLE_USER");
-        assertThat(jwt.getIssuer()).isEqualTo("taller02-auth");
-        assertThat(jwt.getExpiresAt()).isEqualTo(result.expiresAt());
+        // El issuer se verifica como claim crudo: en Spring Security 7
+        // Jwt.getIssuer() exige un valor URL, pero el validador real
+        // (JwtClaimValidator) compara el claim 'iss' directamente.
+        assertThat(jwt.getClaimAsString("iss")).isEqualTo("taller02-auth");
+        // Los timestamps de los claims JWT se serializan con precision de segundos.
+        assertThat(jwt.getExpiresAt()).isEqualTo(result.expiresAt().truncatedTo(ChronoUnit.SECONDS));
     }
 
     @Test

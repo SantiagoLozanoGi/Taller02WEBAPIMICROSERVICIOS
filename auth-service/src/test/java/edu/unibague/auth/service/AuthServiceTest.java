@@ -17,8 +17,8 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.jwk.JWKSet;
@@ -153,7 +153,7 @@ class AuthServiceTest {
         return credential;
     }
 
-    private org.springframework.security.oauth2.jwt.JwtEncoder realEncoder() {
+    private JwtEncoder realEncoder() {
         RSAKey rsaKey = new RSAKey.Builder(TestRsaKeys.publicKey())
                 .privateKey(TestRsaKeys.privateKey())
                 .keyID("taller02-key")

@@ -13,10 +13,12 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -50,6 +52,19 @@ class AuthControllerTest {
 
     @MockitoBean
     private CustomUserDetailsService customUserDetailsService;
+
+    /**
+     * El slice @WebMvcTest de Boot 4 no importa la autoconfiguración de
+     * seguridad (ServletWebSecurityAutoConfiguration), por lo que la
+     * infraestructura de @EnableWebSecurity (HttpSecurity,
+     * AuthenticationConfiguration, WebSecurityConfiguration) no existe y el
+     * SecurityConfig real no puede construirse. Activándola aquí se prueba la
+     * cadena de filtros de seguridad completa y auténtica.
+     */
+    @TestConfiguration
+    @EnableWebSecurity
+    static class WebSecurityTestConfiguration {
+    }
 
     @DynamicPropertySource
     static void rsaKeys(DynamicPropertyRegistry registry) throws Exception {

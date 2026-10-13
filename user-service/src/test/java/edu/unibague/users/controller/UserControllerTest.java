@@ -19,9 +19,11 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -54,6 +56,18 @@ class UserControllerTest {
 
     @MockitoBean
     private UserProfileService userProfileService;
+
+    /**
+     * Igual que en auth-service: el slice @WebMvcTest de Boot 4 no importa la
+     * autoconfiguración de seguridad, y el SecurityConfig real necesita la
+     * infraestructura de @EnableWebSecurity (HttpSecurity, filtros) para
+     * construirse. Así la validación de firma, roles y propiedad se prueba
+     * con la cadena de filtros completa.
+     */
+    @TestConfiguration
+    @EnableWebSecurity
+    static class WebSecurityTestConfiguration {
+    }
 
     private String studentToken;
     private String adminToken;
